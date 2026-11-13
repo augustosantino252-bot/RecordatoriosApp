@@ -1,111 +1,107 @@
-
 package com.example.recordatoriosapp
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.recordatoriosapp.model.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.recordatoriosapp.presentation.CrearRecordatorioViewModel
+import com.example.recordatoriosapp.presentation.DetalleRecordatorioViewModel
+import com.example.recordatoriosapp.presentation.RecordatoriosViewModel
+import com.example.recordatoriosapp.presentation.screens.CrearRecordatorioScreen
+import com.example.recordatoriosapp.presentation.screens.DetalleScreen
+import com.example.recordatoriosapp.presentation.screens.ListadoScreen
+import com.example.recordatoriosapp.repository.InMemoryRecordatorioRepository
+import com.example.recordatoriosapp.repository.ModoDemostracion
 import com.example.recordatoriosapp.ui.theme.RecordatoriosAppTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            RecordatoriosAppTheme {
-                PantallaRecordatorios()
-            }
+            RecordatoriosAppTheme { RecordatoriosAppNavegacion() }
         }
     }
 }
 
 @Composable
-fun PantallaRecordatorios() {
-    Scaffold(
-        modifier = Modifier.fillMaxSize()
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Mis recordatorios",
-                fontSize = 28.sp,
-                color = MaterialTheme.colorScheme.primary
+private fun RecordatoriosAppNavegacion() {
+    val navController = rememberNavController()
+    val repository = remember { InMemoryRecordatorioRepository() }
+    val listadoViewModel: RecordatoriosViewModel = viewModel(
+        factory = viewModelFactory { initializer { RecordatoriosViewModel(repository) } }
+    )
+    NavHost(navController = navController, startDestination = "listado") {
+        composable("listado") {
+            val estado = listadoViewModel.uiState.collectAsStateWithLifecycle().value
+            ListadoScreen(
+                uiState = estado,
+                onCrearRecordatorio = { navController.navigate("crear") },
+                onRecordatorioClick = { id -> navController.navigate("detalle/$id") },
+                onReintentar = {
+                    repository.modoDemostracion = ModoDemostracion.NORMAL
+                    listadoViewModel.reintentar()
+                },
+                onSimularVacio = {
+                    repository.modoDemostracion = ModoDemostracion.VACIO
+                    listadoViewModel.cargarRecordatorios()
+                },
+                onSimularError = {
+                    repository.modoDemostracion = ModoDemostracion.ERROR
+                    listadoViewModel.cargarRecordatorios()
+                },
+                onRestaurarDatos = {
+                    repository.modoDemostracion = ModoDemostracion.NORMAL
+                    listadoViewModel.cargarRecordatorios()
+                }
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Organizá tus tareas del día",
-                fontSize = 16.sp
+        }
+        composable("crear") {
+            val crearViewModel: CrearRecordatorioViewModel = viewModel(
+                factory = viewModelFactory { initializer { CrearRecordatorioViewModel(repository) } }
             )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(DatosRecordatorios.recordatorios) { recordatorio ->
-                    TarjetaRecordatorio(recordatorio)
+            val estado = crearViewModel.uiState.collectAsStateWithLifecycle().value
+            LaunchedEffect(estado.guardadoExitoso) {
+                if (estado.guardadoExitoso) {
+                    repository.modoDemostracion = ModoDemostracion.NORMAL
+                    listadoViewModel.cargarRecordatorios()
+                    navController.popBackStack()
                 }
             }
+            CrearRecordatorioScreen(
+                uiState = estado,
+                onTituloChange = crearViewModel::cambiarTitulo,
+                onDescripcionChange = crearViewModel::cambiarDescripcion,
+                onCategoriaChange = crearViewModel::cambiarCategoria,
+                onPrioridadChange = crearViewModel::cambiarPrioridad,
+                onGuardar = crearViewModel::guardar,
+                onCancelar = { navController.popBackStack() }
+            )
         }
-    }
-}
-
-@Composable
-fun TarjetaRecordatorio(recordatorio: Recordatorio) {
-    val colorCategoria = Color(
-        DatosRecordatorios.coloresCategorias[recordatorio.categoria]
-            ?: 0xFF9E9E9E
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = recordatorio.titulo,
-                style = MaterialTheme.typography.titleMedium
+        composable(
+            route = "detalle/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.IntType })
+        ) { entrada ->
+            val id = entrada.arguments?.getInt("id") ?: -1
+            val detalleViewModel: DetalleRecordatorioViewModel = viewModel(
+                factory = viewModelFactory { initializer { DetalleRecordatorioViewModel(repository) } }
             )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = recordatorio.descripcion,
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "Categoría: ${recordatorio.categoria}",
-                color = colorCategoria
-            )
-
-            Text(
-                text = "Prioridad: ${recordatorio.prioridad}"
-            )
-
-            Text(
-                text = "Estado: ${recordatorio.estado}"
+            val estado = detalleViewModel.uiState.collectAsStateWithLifecycle().value
+            LaunchedEffect(id) { detalleViewModel.cargar(id) }
+            DetalleScreen(
+                uiState = estado,
+                onVolver = { navController.popBackStack() },
+                onReintentar = { detalleViewModel.cargar(id) }
             )
         }
     }

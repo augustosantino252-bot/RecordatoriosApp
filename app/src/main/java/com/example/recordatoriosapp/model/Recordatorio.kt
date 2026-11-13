@@ -1,24 +1,8 @@
-
 package com.example.recordatoriosapp.model
 
-enum class Categoria {
-    ESTUDIO,
-    TRABAJO,
-    PERSONAL,
-    SALUD
-}
-
-enum class Prioridad {
-    ALTA,
-    MEDIA,
-    BAJA
-}
-
-enum class Estado {
-    PENDIENTE,
-    EN_PROGRESO,
-    COMPLETADO
-}
+enum class Categoria { ESTUDIO, TRABAJO, PERSONAL, SALUD }
+enum class Prioridad { ALTA, MEDIA, BAJA }
+enum class Estado { PENDIENTE, EN_PROGRESO, COMPLETADO }
 
 data class Recordatorio(
     val id: Int,
@@ -34,5 +18,3 @@ data class Recordatorio(
         require(descripcion.isNotBlank()) { "La descripción no puede estar vacía" }
     }
 }
-
-
